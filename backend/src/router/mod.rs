@@ -3,25 +3,28 @@ mod devices;
 mod groups;
 mod pfsense;
 
-use std::sync::Arc;
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
-use rspc::{BuiltRouter, Rspc};
+use rspc_procedure::{Procedure, ProcedureError, Procedures, ResolverError, State};
 use tokio_rusqlite::Connection;
 
-pub(crate) const R: Rspc<Ctx> = Rspc::new();
+pub type Ctx = Connection;
 
-#[derive(Clone)]
-pub struct Ctx {
-    pub db: Arc<Connection>,
+/// Convert any display-able error into a resolver-level ProcedureError.
+pub(crate) fn internal_err(msg: impl std::fmt::Display) -> ProcedureError {
+    ProcedureError::Resolver(ResolverError::new(
+        serde_json::json!({"code": 500, "message": msg.to_string()}),
+        None::<std::io::Error>,
+    ))
 }
 
-pub fn build_router() -> Arc<BuiltRouter<Ctx>> {
-    R.router()
-        .merge("devices", devices::router())
-        .merge("groups", groups::router())
-        .merge("accessPoints", access_points::router())
-        .merge("pfsense", pfsense::router())
-        .build()
-        .unwrap()
-        .arced()
+pub fn build() -> Procedures<Ctx> {
+    let mut map: HashMap<Cow<'static, str>, Procedure<Ctx>> = HashMap::new();
+
+    devices::register(&mut map);
+    groups::register(&mut map);
+    access_points::register(&mut map);
+    pfsense::register(&mut map);
+
+    Procedures::new(map, Arc::new(State::default()))
 }

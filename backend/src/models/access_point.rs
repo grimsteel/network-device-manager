@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessPoint {
     pub id: i32,
     pub name: String,
@@ -9,7 +8,7 @@ pub struct AccessPoint {
     pub port: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Interface {
     pub id: i32,
     pub ap_id: i32,
@@ -19,7 +18,7 @@ pub struct Interface {
     pub needs_sync: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessPointWithInterfaces {
     pub id: i32,
     pub name: String,
@@ -28,14 +27,14 @@ pub struct AccessPointWithInterfaces {
     pub interfaces: Vec<Interface>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAccessPoint {
     pub name: String,
     pub host: String,
     pub port: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAccessPoint {
     pub id: i32,
     pub name: String,
@@ -43,21 +42,21 @@ pub struct UpdateAccessPoint {
     pub port: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInterface {
     pub ap_id: i32,
     pub iface_name: String,
     pub group_id: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInterface {
     pub id: i32,
     pub iface_name: String,
     pub group_id: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResult {
     pub interface_id: i32,
     pub success: bool,

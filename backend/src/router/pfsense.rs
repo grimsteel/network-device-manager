@@ -1,17 +1,17 @@
+use std::{borrow::Cow, collections::HashMap};
+
+use rspc_procedure::{Procedure, ProcedureStream};
 use serde::{Deserialize, Serialize};
-use specta::Type;
 
-use rspc::Router;
+use super::{internal_err, Ctx};
 
-use super::{Ctx, R};
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PfsenseConfig {
     pub base_url: String,
     pub api_key: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DhcpLease {
     pub mac: String,
     pub ip: String,
@@ -19,18 +19,26 @@ pub struct DhcpLease {
     pub description: String,
 }
 
-pub fn router() -> Router<Ctx> {
-    R.router().procedure(
-        "listDhcpLeases",
-        R.query(|_ctx, cfg: PfsenseConfig| async move {
-            let client = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true) // pfSense often uses self-signed certs
-                .build()
-                .map_err(|e| {
-                    rspc::Error::new(rspc::ErrorCode::InternalServerError, e.to_string())
-                })?;
+pub fn register(map: &mut HashMap<Cow<'static, str>, Procedure<Ctx>>) {
+    map.insert("pfsense.listDhcpLeases".into(), list_dhcp_leases());
+}
 
-            let url = format!("{}/api/v1/services/dhcpd/lease", cfg.base_url.trim_end_matches('/'));
+fn list_dhcp_leases() -> Procedure<Ctx> {
+    Procedure::new(|_ctx, input| {
+        let cfg = match input.deserialize::<PfsenseConfig>() {
+            Ok(v) => v,
+            Err(e) => return ProcedureStream::from(e),
+        };
+        ProcedureStream::from_future(async move {
+            let client = reqwest::Client::builder()
+                .danger_accept_invalid_certs(true)
+                .build()
+                .map_err(internal_err)?;
+
+            let url = format!(
+                "{}/api/v1/services/dhcpd/lease",
+                cfg.base_url.trim_end_matches('/')
+            );
 
             let resp = client
                 .get(&url)
@@ -38,24 +46,18 @@ pub fn router() -> Router<Ctx> {
                 .send()
                 .await
                 .map_err(|e| {
-                    rspc::Error::new(
-                        rspc::ErrorCode::InternalServerError,
-                        format!("pfSense API error: {}", e),
-                    )
+                    internal_err(format!("pfSense request failed: {}", e))
                 })?;
 
             if !resp.status().is_success() {
-                return Err(rspc::Error::new(
-                    rspc::ErrorCode::InternalServerError,
-                    format!("pfSense returned HTTP {}", resp.status()),
-                ));
+                return Err(internal_err(format!(
+                    "pfSense returned HTTP {}",
+                    resp.status()
+                )));
             }
 
             let body: serde_json::Value = resp.json().await.map_err(|e| {
-                rspc::Error::new(
-                    rspc::ErrorCode::InternalServerError,
-                    format!("Failed to parse pfSense response: {}", e),
-                )
+                internal_err(format!("Failed to parse pfSense response: {}", e))
             })?;
 
             let leases = body["data"]
@@ -73,6 +75,6 @@ pub fn router() -> Router<Ctx> {
                 .collect::<Vec<_>>();
 
             Ok(leases)
-        }),
-    )
+        })
+    })
 }

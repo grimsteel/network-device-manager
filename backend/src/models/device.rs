@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Device {
     pub id: i32,
     pub name: String,
@@ -11,7 +10,7 @@ pub struct Device {
     pub ip_address: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDevice {
     pub name: String,
     pub description: String,
@@ -20,7 +19,7 @@ pub struct CreateDevice {
     pub ip_address: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateDevice {
     pub id: i32,
     pub name: String,
