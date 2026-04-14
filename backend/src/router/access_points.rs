@@ -20,27 +20,23 @@ pub fn register(map: &mut HashMap<Cow<'static, str>, Procedure<Ctx>>) {
     map.insert("accessPoints.syncInterface".into(), sync_interface());
 }
 
-fn fetch_ap_with_interfaces(
+/// Fetches an access point together with all its interfaces.
+fn fetch_ap(
     conn: &rusqlite::Connection,
     id: i32,
-) -> Result<Option<AccessPointWithInterfaces>, rusqlite::Error> {
-    let ap = conn
+) -> Result<Option<AccessPoint>, rusqlite::Error> {
+    let row = conn
         .query_row(
             "SELECT id, name, host, port FROM access_points WHERE id = ?1",
             [id],
-            |row| {
-                Ok(AccessPoint {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    host: row.get(2)?,
-                    port: row.get(3)?,
-                })
+            |row| -> Result<(i32, String, String, i32), _> {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             },
         )
         .optional()?;
 
-    let ap = match ap {
-        Some(a) => a,
+    let (apid, name, host, port) = match row {
+        Some(r) => r,
         None => return Ok(None),
     };
 
@@ -49,25 +45,19 @@ fn fetch_ap_with_interfaces(
          FROM ap_interfaces WHERE ap_id = ?1 ORDER BY iface_name",
     )?
     .query_map([id], |row| {
-            let needs_sync: i32 = row.get(5)?;
-            Ok(Interface {
-                id: row.get(0)?,
-                ap_id: row.get(1)?,
-                iface_name: row.get(2)?,
-                group_id: row.get(3)?,
-                last_synced_at: row.get(4)?,
-                needs_sync: needs_sync != 0,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let needs_sync: i32 = row.get(5)?;
+        Ok(Interface {
+            id: row.get(0)?,
+            ap_id: row.get(1)?,
+            iface_name: row.get(2)?,
+            group_id: row.get(3)?,
+            last_synced_at: row.get(4)?,
+            needs_sync: needs_sync != 0,
+        })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Some(AccessPointWithInterfaces {
-        id: ap.id,
-        name: ap.name,
-        host: ap.host,
-        port: ap.port,
-        interfaces,
-    }))
+    Ok(Some(AccessPoint { id: apid, name, host, port, interfaces }))
 }
 
 /// Parse "AA:BB:CC:DD:EE:FF" into 6 raw bytes.
@@ -127,6 +117,7 @@ fn list() -> Procedure<Ctx> {
                         name: row.get(1)?,
                         host: row.get(2)?,
                         port: row.get(3)?,
+                        interfaces: vec![],
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()
@@ -144,7 +135,7 @@ fn get() -> Procedure<Ctx> {
             Err(e) => return ProcedureStream::from(e),
         };
         ProcedureStream::from_future(async move {
-            ctx.call(move |conn| fetch_ap_with_interfaces(conn, id))
+            ctx.call(move |conn| fetch_ap(conn, id))
                 .await
                 .map_err(internal_err)?
                 .ok_or_else(not_found)
@@ -152,9 +143,10 @@ fn get() -> Procedure<Ctx> {
     })
 }
 
+/// Create: deserializes an AccessPoint; `id` and `interfaces` are ignored.
 fn create() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<CreateAccessPoint>() {
+        let args = match input.deserialize::<AccessPoint>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -165,12 +157,7 @@ fn create() -> Procedure<Ctx> {
                     rusqlite::params![&args.name, &args.host, args.port],
                 )?;
                 let id = conn.last_insert_rowid() as i32;
-                Ok(AccessPoint {
-                    id,
-                    name: args.name,
-                    host: args.host,
-                    port: args.port,
-                })
+                Ok(AccessPoint { id, name: args.name, host: args.host, port: args.port, interfaces: vec![] })
             })
             .await
             .map_err(internal_err)
@@ -178,9 +165,10 @@ fn create() -> Procedure<Ctx> {
     })
 }
 
+/// Update: uses the `id` field; `interfaces` is ignored.
 fn update() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<UpdateAccessPoint>() {
+        let args = match input.deserialize::<AccessPoint>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -190,12 +178,7 @@ fn update() -> Procedure<Ctx> {
                     "UPDATE access_points SET name=?1, host=?2, port=?3 WHERE id=?4",
                     rusqlite::params![&args.name, &args.host, args.port, args.id],
                 )?;
-                Ok(AccessPoint {
-                    id: args.id,
-                    name: args.name,
-                    host: args.host,
-                    port: args.port,
-                })
+                Ok(AccessPoint { id: args.id, name: args.name, host: args.host, port: args.port, interfaces: vec![] })
             })
             .await
             .map_err(internal_err)
@@ -220,9 +203,10 @@ fn delete() -> Procedure<Ctx> {
     })
 }
 
+/// Add interface: deserializes an Interface; `id` is ignored, `ap_id` is used.
 fn add_interface() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<CreateInterface>() {
+        let args = match input.deserialize::<Interface>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -250,9 +234,10 @@ fn add_interface() -> Procedure<Ctx> {
     })
 }
 
+/// Update interface: uses the `id` field.
 fn update_interface() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<UpdateInterface>() {
+        let args = match input.deserialize::<Interface>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };

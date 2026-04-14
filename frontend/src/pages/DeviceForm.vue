@@ -5,22 +5,17 @@
     </h1>
 
     <form @submit.prevent="submit" class="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-        <input v-model="form.name" required class="input" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-        <input v-model="form.description" class="input" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Network</label>
-        <input v-model="form.network" placeholder="e.g. LAN" class="input" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">MAC Address</label>
+      <FormField label="Name" v-model="form.name" required />
+      <FormField label="Description" v-model="form.description" />
+      <FormField label="Network" v-model="form.network" placeholder="e.g. LAN" />
+      <FormField label="MAC Address">
         <div class="flex gap-2">
-          <input v-model="form.mac_address" required placeholder="AA:BB:CC:DD:EE:FF" class="input flex-1" />
+          <input
+            v-model="form.mac_address"
+            required
+            placeholder="AA:BB:CC:DD:EE:FF"
+            class="form-input flex-1"
+          />
           <button
             type="button"
             @click="showImport = true"
@@ -29,16 +24,17 @@
             Import from pfSense
           </button>
         </div>
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">IP Address (optional)</label>
-        <input v-model="form.ip_address" placeholder="192.168.1.x" class="input" />
-      </div>
+      </FormField>
+      <FormField label="IP Address (optional)" v-model="form.ip_address" placeholder="192.168.1.x" />
 
       <div v-if="submitError" class="text-red-600 text-sm">{{ submitError }}</div>
 
       <div class="flex gap-3 pt-2">
-        <button type="submit" :disabled="saving" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          type="submit"
+          :disabled="saving"
+          class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50"
+        >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
         <RouterLink to="/devices" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
@@ -52,14 +48,8 @@
       <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
         <h2 class="text-lg font-semibold mb-4">Import from pfSense DHCP</h2>
         <div class="space-y-3 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">pfSense Base URL</label>
-            <input v-model="pf.base_url" placeholder="https://192.168.1.1" class="input" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-            <input v-model="pf.api_key" type="password" class="input" />
-          </div>
+          <FormField label="pfSense Base URL" v-model="pf.base_url" placeholder="https://192.168.1.1" />
+          <FormField label="API Key" v-model="pf.api_key" type="password" />
           <button
             @click="fetchLeases"
             :disabled="pfLoading"
@@ -84,10 +74,7 @@
           </button>
         </div>
 
-        <button
-          @click="showImport = false"
-          class="mt-4 text-sm text-gray-500 hover:text-gray-700"
-        >
+        <button @click="showImport = false" class="mt-4 text-sm text-gray-500 hover:text-gray-700">
           Close
         </button>
       </div>
@@ -100,6 +87,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../rspc';
 import type { DhcpLease } from '../bindings';
+import FormField from '../components/FormField.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -107,13 +95,7 @@ const route = useRoute();
 const id = route.params.id ? Number(route.params.id) : null;
 const isNew = id === null;
 
-const form = reactive({
-  name: '',
-  description: '',
-  network: '',
-  mac_address: '',
-  ip_address: '',
-});
+const form = reactive({ name: '', description: '', network: '', mac_address: '', ip_address: '' });
 const saving = ref(false);
 const submitError = ref('');
 
@@ -139,6 +121,7 @@ async function submit() {
   submitError.value = '';
   try {
     const payload = {
+      id: id ?? 0,
       name: form.name,
       description: form.description,
       network: form.network,
@@ -148,7 +131,7 @@ async function submit() {
     if (isNew) {
       await api.devices.create(payload);
     } else {
-      await api.devices.update({ id: id!, ...payload });
+      await api.devices.update(payload);
     }
     router.push('/devices');
   } catch (e: unknown) {
@@ -163,10 +146,7 @@ async function fetchLeases() {
   pfError.value = '';
   leases.value = [];
   try {
-    leases.value = await api.pfsense.listDhcpLeases({
-      base_url: pf.base_url,
-      api_key: pf.api_key,
-    });
+    leases.value = await api.pfsense.listDhcpLeases({ base_url: pf.base_url, api_key: pf.api_key });
   } catch (e: unknown) {
     pfError.value = e instanceof Error ? e.message : 'Failed to fetch leases';
   } finally {
@@ -181,9 +161,3 @@ function importLease(lease: DhcpLease) {
   showImport.value = false;
 }
 </script>
-
-<style scoped>
-.input {
-  @apply w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500;
-}
-</style>

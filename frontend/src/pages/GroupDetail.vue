@@ -6,17 +6,15 @@
 
     <!-- Group metadata form -->
     <form @submit.prevent="saveGroup" class="bg-white rounded-lg border border-gray-200 p-6 space-y-4 mb-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-        <input v-model="form.name" required class="input" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-        <input v-model="form.description" class="input" />
-      </div>
+      <FormField label="Name" v-model="form.name" required />
+      <FormField label="Description" v-model="form.description" />
       <div v-if="saveError" class="text-red-600 text-sm">{{ saveError }}</div>
       <div class="flex gap-3">
-        <button type="submit" :disabled="saving" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          type="submit"
+          :disabled="saving"
+          class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50"
+        >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
         <RouterLink to="/groups" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
@@ -29,7 +27,6 @@
     <div v-if="!isNew && group" class="bg-white rounded-lg border border-gray-200 p-6">
       <h2 class="text-lg font-medium text-gray-800 mb-4">Devices in this Group</h2>
 
-      <!-- Current members -->
       <div v-if="group.devices.length === 0" class="text-sm text-gray-500 mb-4">
         No devices assigned yet.
       </div>
@@ -43,10 +40,7 @@
             <span class="text-sm font-medium text-gray-800">{{ d.name }}</span>
             <span class="text-xs text-gray-400 font-mono ml-2">{{ d.mac_address }}</span>
           </div>
-          <button
-            @click="removeDevice(d.id)"
-            class="text-red-500 hover:text-red-700 text-xs"
-          >
+          <button @click="removeDevice(d.id)" class="text-red-500 hover:text-red-700 text-xs">
             Remove
           </button>
         </li>
@@ -54,7 +48,7 @@
 
       <!-- Add device -->
       <div v-if="availableDevices.length > 0" class="flex gap-2">
-        <select v-model="selectedDeviceId" class="input flex-1 text-sm">
+        <select v-model="selectedDeviceId" class="form-input flex-1 text-sm">
           <option disabled value="">Select a device to add…</option>
           <option v-for="d in availableDevices" :key="d.id" :value="d.id">
             {{ d.name }} ({{ d.mac_address }})
@@ -79,7 +73,8 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../rspc';
-import type { GroupWithDevices, Device } from '../bindings';
+import type { Group, Device } from '../bindings';
+import FormField from '../components/FormField.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -91,7 +86,7 @@ const form = reactive({ name: '', description: '' });
 const saving = ref(false);
 const saveError = ref('');
 
-const group = ref<GroupWithDevices | null>(null);
+const group = ref<Group | null>(null);
 const allDevices = ref<Device[]>([]);
 const selectedDeviceId = ref<number | ''>('');
 
@@ -113,10 +108,10 @@ async function saveGroup() {
   saveError.value = '';
   try {
     if (isNew) {
-      const created = await api.groups.create({ name: form.name, description: form.description });
+      const created = await api.groups.create({ id: 0, name: form.name, description: form.description, devices: [] });
       router.push(`/groups/${created.id}`);
     } else {
-      await api.groups.update({ id: id!, name: form.name, description: form.description });
+      await api.groups.update({ id: id!, name: form.name, description: form.description, devices: [] });
     }
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'Save failed';
@@ -127,10 +122,7 @@ async function saveGroup() {
 
 async function addDevice() {
   if (!selectedDeviceId.value) return;
-  group.value = await api.groups.addDevice({
-    group_id: id!,
-    device_id: Number(selectedDeviceId.value),
-  });
+  group.value = await api.groups.addDevice({ group_id: id!, device_id: Number(selectedDeviceId.value) });
   selectedDeviceId.value = '';
 }
 
@@ -138,9 +130,3 @@ async function removeDevice(deviceId: number) {
   group.value = await api.groups.removeDevice({ group_id: id!, device_id: deviceId });
 }
 </script>
-
-<style scoped>
-.input {
-  @apply w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500;
-}
-</style>

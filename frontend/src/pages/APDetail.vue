@@ -6,23 +6,18 @@
 
     <!-- AP metadata form -->
     <form @submit.prevent="saveAP" class="bg-white rounded-lg border border-gray-200 p-6 space-y-4 mb-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-        <input v-model="form.name" required class="input" />
-      </div>
-      <div class="flex gap-3">
-        <div class="flex-1">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Host</label>
-          <input v-model="form.host" required placeholder="192.168.1.10" class="input" />
-        </div>
-        <div class="w-28">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
-          <input v-model.number="form.port" type="number" min="1" max="65535" class="input" />
-        </div>
-      </div>
+      <FormField label="Name" v-model="form.name" required />
+      <FormField label="Host" v-model="form.host" required placeholder="192.168.1.10" />
+      <FormField label="Port">
+        <input v-model.number="form.port" type="number" min="1" max="65535" class="form-input" />
+      </FormField>
       <div v-if="saveError" class="text-red-600 text-sm">{{ saveError }}</div>
       <div class="flex gap-3">
-        <button type="submit" :disabled="saving" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50">
+        <button
+          type="submit"
+          :disabled="saving"
+          class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50"
+        >
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
         <RouterLink to="/access-points" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
@@ -35,7 +30,6 @@
     <div v-if="!isNew && ap" class="bg-white rounded-lg border border-gray-200 p-6">
       <h2 class="text-lg font-medium text-gray-800 mb-4">Interfaces</h2>
 
-      <!-- Existing interfaces -->
       <div v-if="ap.interfaces.length === 0" class="text-sm text-gray-500 mb-4">
         No interfaces configured yet.
       </div>
@@ -50,10 +44,10 @@
               <div class="flex items-center gap-3">
                 <input
                   v-model="editForms[iface.id].iface_name"
-                  class="input text-sm font-mono w-40"
+                  class="form-input text-sm font-mono w-40"
                   placeholder="wlan0"
                 />
-                <select v-model="editForms[iface.id].group_id" class="input text-sm flex-1">
+                <select v-model="editForms[iface.id].group_id" class="form-input text-sm flex-1">
                   <option :value="null">No group</option>
                   <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
                 </select>
@@ -73,7 +67,11 @@
                 >
                   {{ syncing === iface.id ? 'Syncing…' : 'Sync Now' }}
                 </button>
-                <span v-if="syncResults[iface.id]" :class="syncResults[iface.id]!.success ? 'text-green-600' : 'text-red-600'" class="text-xs">
+                <span
+                  v-if="syncResults[iface.id]"
+                  :class="syncResults[iface.id]!.success ? 'text-green-600' : 'text-red-600'"
+                  class="text-xs"
+                >
                   {{ syncResults[iface.id]!.message }}
                 </span>
               </div>
@@ -92,8 +90,8 @@
       <div class="border-t border-gray-100 pt-4">
         <h3 class="text-sm font-medium text-gray-700 mb-3">Add Interface</h3>
         <div class="flex gap-2">
-          <input v-model="newIface.iface_name" placeholder="wlan0" class="input text-sm w-32" />
-          <select v-model="newIface.group_id" class="input text-sm flex-1">
+          <input v-model="newIface.iface_name" placeholder="wlan0" class="form-input text-sm w-32" />
+          <select v-model="newIface.group_id" class="form-input text-sm flex-1">
             <option :value="null">No group</option>
             <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
           </select>
@@ -114,7 +112,8 @@
 import { ref, reactive, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../rspc';
-import type { AccessPointWithInterfaces, Group, SyncResult } from '../bindings';
+import type { AccessPoint, Group, SyncResult } from '../bindings';
+import FormField from '../components/FormField.vue';
 import SyncBadge from '../components/SyncBadge.vue';
 
 const router = useRouter();
@@ -127,7 +126,7 @@ const form = reactive({ name: '', host: '', port: 8765 });
 const saving = ref(false);
 const saveError = ref('');
 
-const ap = ref<AccessPointWithInterfaces | null>(null);
+const ap = ref<AccessPoint | null>(null);
 const groups = ref<Group[]>([]);
 
 // Per-interface inline edit forms keyed by interface id
@@ -163,10 +162,10 @@ async function saveAP() {
   saveError.value = '';
   try {
     if (isNew) {
-      const created = await api.accessPoints.create({ name: form.name, host: form.host, port: form.port });
+      const created = await api.accessPoints.create({ id: 0, name: form.name, host: form.host, port: form.port, interfaces: [] });
       router.push(`/access-points/${created.id}`);
     } else {
-      await api.accessPoints.update({ id: id!, name: form.name, host: form.host, port: form.port });
+      await api.accessPoints.update({ id: id!, name: form.name, host: form.host, port: form.port, interfaces: [] });
     }
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'Save failed';
@@ -177,9 +176,14 @@ async function saveAP() {
 
 async function addIface() {
   if (!newIface.iface_name) return;
-  ap.value = await api.accessPoints.get(
-    (await api.accessPoints.addInterface({ ap_id: id!, iface_name: newIface.iface_name, group_id: newIface.group_id })).ap_id
-  );
+  await api.accessPoints.addInterface({
+    id: 0,
+    ap_id: id!,
+    iface_name: newIface.iface_name,
+    group_id: newIface.group_id,
+    last_synced_at: null,
+    needs_sync: false,
+  });
   ap.value = await api.accessPoints.get(id!);
   newIface.iface_name = '';
   newIface.group_id = null;
@@ -187,7 +191,15 @@ async function addIface() {
 
 async function saveIface(ifaceId: number) {
   const ef = editForms[ifaceId];
-  await api.accessPoints.updateInterface({ id: ifaceId, iface_name: ef.iface_name, group_id: ef.group_id });
+  const current = ap.value!.interfaces.find(i => i.id === ifaceId)!;
+  await api.accessPoints.updateInterface({
+    id: ifaceId,
+    ap_id: current.ap_id,
+    iface_name: ef.iface_name,
+    group_id: ef.group_id,
+    last_synced_at: current.last_synced_at,
+    needs_sync: current.needs_sync,
+  });
   ap.value = await api.accessPoints.get(id!);
 }
 
@@ -215,9 +227,3 @@ async function sync(ifaceId: number) {
   }
 }
 </script>
-
-<style scoped>
-.input {
-  @apply w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500;
-}
-</style>

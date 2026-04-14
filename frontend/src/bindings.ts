@@ -9,45 +9,11 @@ export interface Device {
   ip_address: string | null;
 }
 
-export interface CreateDevice {
-  name: string;
-  description: string;
-  network: string;
-  mac_address: string;
-  ip_address: string | null;
-}
-
-export interface UpdateDevice {
-  id: number;
-  name: string;
-  description: string;
-  network: string;
-  mac_address: string;
-  ip_address: string | null;
-}
-
 export interface Group {
   id: number;
   name: string;
   description: string;
-}
-
-export interface GroupWithDevices {
-  id: number;
-  name: string;
-  description: string;
   devices: Device[];
-}
-
-export interface CreateGroup {
-  name: string;
-  description: string;
-}
-
-export interface UpdateGroup {
-  id: number;
-  name: string;
-  description: string;
 }
 
 export interface GroupDeviceInput {
@@ -60,6 +26,7 @@ export interface AccessPoint {
   name: string;
   host: string;
   port: number;
+  interfaces: Interface[];
 }
 
 export interface Interface {
@@ -69,39 +36,6 @@ export interface Interface {
   group_id: number | null;
   last_synced_at: number | null;
   needs_sync: boolean;
-}
-
-export interface AccessPointWithInterfaces {
-  id: number;
-  name: string;
-  host: string;
-  port: number;
-  interfaces: Interface[];
-}
-
-export interface CreateAccessPoint {
-  name: string;
-  host: string;
-  port: number;
-}
-
-export interface UpdateAccessPoint {
-  id: number;
-  name: string;
-  host: string;
-  port: number;
-}
-
-export interface CreateInterface {
-  ap_id: number;
-  iface_name: string;
-  group_id: number | null;
-}
-
-export interface UpdateInterface {
-  id: number;
-  iface_name: string;
-  group_id: number | null;
 }
 
 export interface SyncResult {

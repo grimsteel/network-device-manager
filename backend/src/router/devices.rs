@@ -78,9 +78,11 @@ fn get() -> Procedure<Ctx> {
     })
 }
 
+/// Create: deserializes a Device; the `id` field is ignored, the database
+/// assigns a real id which is returned in the response.
 fn create() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<CreateDevice>() {
+        let args = match input.deserialize::<Device>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -98,14 +100,7 @@ fn create() -> Procedure<Ctx> {
                     ],
                 )?;
                 let id = conn.last_insert_rowid() as i32;
-                Ok(Device {
-                    id,
-                    name: args.name,
-                    description: args.description,
-                    network: args.network,
-                    mac_address: args.mac_address,
-                    ip_address: args.ip_address,
-                })
+                Ok(Device { id, ..args })
             })
             .await
             .map_err(internal_err)
@@ -113,9 +108,10 @@ fn create() -> Procedure<Ctx> {
     })
 }
 
+/// Update: uses the `id` field from the deserialized Device.
 fn update() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<UpdateDevice>() {
+        let args = match input.deserialize::<Device>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -133,14 +129,7 @@ fn update() -> Procedure<Ctx> {
                         args.id
                     ],
                 )?;
-                Ok(Device {
-                    id: args.id,
-                    name: args.name,
-                    description: args.description,
-                    network: args.network,
-                    mac_address: args.mac_address,
-                    ip_address: args.ip_address,
-                })
+                Ok(args)
             })
             .await
             .map_err(internal_err)

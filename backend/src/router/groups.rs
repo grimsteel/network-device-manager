@@ -17,26 +17,23 @@ pub fn register(map: &mut HashMap<Cow<'static, str>, Procedure<Ctx>>) {
     map.insert("groups.removeDevice".into(), remove_device());
 }
 
-fn fetch_group_with_devices(
+/// Fetches a group along with all its member devices.
+fn fetch_group(
     conn: &rusqlite::Connection,
     id: i32,
-) -> Result<Option<GroupWithDevices>, rusqlite::Error> {
-    let group = conn
+) -> Result<Option<Group>, rusqlite::Error> {
+    let row = conn
         .query_row(
             "SELECT id, name, description FROM groups WHERE id = ?1",
             [id],
-            |row| {
-                Ok(Group {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    description: row.get(2)?,
-                })
+            |row| -> Result<(i32, String, String), _> {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             },
         )
         .optional()?;
 
-    let group = match group {
-        Some(g) => g,
+    let (gid, name, description) = match row {
+        Some(r) => r,
         None => return Ok(None),
     };
 
@@ -48,23 +45,18 @@ fn fetch_group_with_devices(
          ORDER BY d.name",
     )?
     .query_map([id], |row| {
-            Ok(Device {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                network: row.get(3)?,
-                mac_address: row.get(4)?,
-                ip_address: row.get(5)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        Ok(Device {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            network: row.get(3)?,
+            mac_address: row.get(4)?,
+            ip_address: row.get(5)?,
+        })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Some(GroupWithDevices {
-        id: group.id,
-        name: group.name,
-        description: group.description,
-        devices,
-    }))
+    Ok(Some(Group { id: gid, name, description, devices }))
 }
 
 fn not_found() -> ProcedureError {
@@ -84,6 +76,7 @@ fn list() -> Procedure<Ctx> {
                         id: row.get(0)?,
                         name: row.get(1)?,
                         description: row.get(2)?,
+                        devices: vec![],
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()
@@ -101,7 +94,7 @@ fn get() -> Procedure<Ctx> {
             Err(e) => return ProcedureStream::from(e),
         };
         ProcedureStream::from_future(async move {
-            ctx.call(move |conn| fetch_group_with_devices(conn, id))
+            ctx.call(move |conn| fetch_group(conn, id))
                 .await
                 .map_err(internal_err)?
                 .ok_or_else(not_found)
@@ -109,9 +102,10 @@ fn get() -> Procedure<Ctx> {
     })
 }
 
+/// Create: deserializes a Group; `id` and `devices` are ignored.
 fn create() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<CreateGroup>() {
+        let args = match input.deserialize::<Group>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -122,11 +116,7 @@ fn create() -> Procedure<Ctx> {
                     rusqlite::params![&args.name, &args.description],
                 )?;
                 let id = conn.last_insert_rowid() as i32;
-                Ok(Group {
-                    id,
-                    name: args.name,
-                    description: args.description,
-                })
+                Ok(Group { id, name: args.name, description: args.description, devices: vec![] })
             })
             .await
             .map_err(internal_err)
@@ -134,9 +124,10 @@ fn create() -> Procedure<Ctx> {
     })
 }
 
+/// Update: uses the `id` field; `devices` is ignored.
 fn update() -> Procedure<Ctx> {
     Procedure::new(|ctx: Ctx, input| {
-        let args = match input.deserialize::<UpdateGroup>() {
+        let args = match input.deserialize::<Group>() {
             Ok(v) => v,
             Err(e) => return ProcedureStream::from(e),
         };
@@ -146,11 +137,7 @@ fn update() -> Procedure<Ctx> {
                     "UPDATE groups SET name=?1, description=?2 WHERE id=?3",
                     rusqlite::params![&args.name, &args.description, args.id],
                 )?;
-                Ok(Group {
-                    id: args.id,
-                    name: args.name,
-                    description: args.description,
-                })
+                Ok(Group { id: args.id, name: args.name, description: args.description, devices: vec![] })
             })
             .await
             .map_err(internal_err)
@@ -191,7 +178,7 @@ fn add_device() -> Procedure<Ctx> {
                     "UPDATE ap_interfaces SET needs_sync=1 WHERE group_id=?1",
                     [args.group_id],
                 )?;
-                fetch_group_with_devices(conn, args.group_id)
+                fetch_group(conn, args.group_id)
             })
             .await
             .map_err(internal_err)?
@@ -216,7 +203,7 @@ fn remove_device() -> Procedure<Ctx> {
                     "UPDATE ap_interfaces SET needs_sync=1 WHERE group_id=?1",
                     [args.group_id],
                 )?;
-                fetch_group_with_devices(conn, args.group_id)
+                fetch_group(conn, args.group_id)
             })
             .await
             .map_err(internal_err)?

@@ -6,6 +6,7 @@ pub struct AccessPoint {
     pub name: String,
     pub host: String,
     pub port: i32,
+    pub interfaces: Vec<Interface>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,44 +17,6 @@ pub struct Interface {
     pub group_id: Option<i32>,
     pub last_synced_at: Option<i32>,
     pub needs_sync: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccessPointWithInterfaces {
-    pub id: i32,
-    pub name: String,
-    pub host: String,
-    pub port: i32,
-    pub interfaces: Vec<Interface>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateAccessPoint {
-    pub name: String,
-    pub host: String,
-    pub port: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateAccessPoint {
-    pub id: i32,
-    pub name: String,
-    pub host: String,
-    pub port: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateInterface {
-    pub ap_id: i32,
-    pub iface_name: String,
-    pub group_id: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateInterface {
-    pub id: i32,
-    pub iface_name: String,
-    pub group_id: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

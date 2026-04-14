@@ -9,14 +9,15 @@
  *   { jsonrpc: "2.0", id: null,
  *     result: { type: "response", data: <value> }
  *             | { type: "error",   data: { code, message } } }
+ *
+ * Convention: pass id: 0 when creating a new entity; the server ignores it
+ * and returns the real database-assigned id in the response.
  */
 
 import type {
-  Device, CreateDevice, UpdateDevice,
-  Group, GroupWithDevices, CreateGroup, UpdateGroup, GroupDeviceInput,
-  AccessPoint, Interface, AccessPointWithInterfaces,
-  CreateAccessPoint, UpdateAccessPoint, CreateInterface, UpdateInterface,
-  SyncResult, PfsenseConfig, DhcpLease,
+  Device, Group, GroupDeviceInput,
+  AccessPoint, Interface, SyncResult,
+  PfsenseConfig, DhcpLease,
 } from './bindings';
 
 const BASE = '/rspc';
@@ -62,34 +63,30 @@ export const api = {
   devices: {
     list: (): Promise<Device[]> => query('devices.list'),
     get: (id: number): Promise<Device> => query('devices.get', id),
-    create: (input: CreateDevice): Promise<Device> => mutate('devices.create', input),
-    update: (input: UpdateDevice): Promise<Device> => mutate('devices.update', input),
+    create: (input: Device): Promise<Device> => mutate('devices.create', input),
+    update: (input: Device): Promise<Device> => mutate('devices.update', input),
     delete: (id: number): Promise<void> => mutate('devices.delete', id),
   },
 
   groups: {
     list: (): Promise<Group[]> => query('groups.list'),
-    get: (id: number): Promise<GroupWithDevices> => query('groups.get', id),
-    create: (input: CreateGroup): Promise<Group> => mutate('groups.create', input),
-    update: (input: UpdateGroup): Promise<Group> => mutate('groups.update', input),
+    get: (id: number): Promise<Group> => query('groups.get', id),
+    create: (input: Group): Promise<Group> => mutate('groups.create', input),
+    update: (input: Group): Promise<Group> => mutate('groups.update', input),
     delete: (id: number): Promise<void> => mutate('groups.delete', id),
-    addDevice: (input: GroupDeviceInput): Promise<GroupWithDevices> =>
-      mutate('groups.addDevice', input),
-    removeDevice: (input: GroupDeviceInput): Promise<GroupWithDevices> =>
-      mutate('groups.removeDevice', input),
+    addDevice: (input: GroupDeviceInput): Promise<Group> => mutate('groups.addDevice', input),
+    removeDevice: (input: GroupDeviceInput): Promise<Group> => mutate('groups.removeDevice', input),
   },
 
   accessPoints: {
     list: (): Promise<AccessPoint[]> => query('accessPoints.list'),
-    get: (id: number): Promise<AccessPointWithInterfaces> => query('accessPoints.get', id),
-    create: (input: CreateAccessPoint): Promise<AccessPoint> =>
-      mutate('accessPoints.create', input),
-    update: (input: UpdateAccessPoint): Promise<AccessPoint> =>
-      mutate('accessPoints.update', input),
+    get: (id: number): Promise<AccessPoint> => query('accessPoints.get', id),
+    create: (input: AccessPoint): Promise<AccessPoint> => mutate('accessPoints.create', input),
+    update: (input: AccessPoint): Promise<AccessPoint> => mutate('accessPoints.update', input),
     delete: (id: number): Promise<void> => mutate('accessPoints.delete', id),
-    addInterface: (input: CreateInterface): Promise<Interface> =>
+    addInterface: (input: Interface): Promise<Interface> =>
       mutate('accessPoints.addInterface', input),
-    updateInterface: (input: UpdateInterface): Promise<Interface> =>
+    updateInterface: (input: Interface): Promise<Interface> =>
       mutate('accessPoints.updateInterface', input),
     removeInterface: (id: number): Promise<void> =>
       mutate('accessPoints.removeInterface', id),
